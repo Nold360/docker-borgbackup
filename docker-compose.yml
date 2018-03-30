@@ -6,8 +6,13 @@ services:
    one.gnu.docker.backup: "False"
   environment:
    BORG_REPO: "/backup"
+   BORG_INIT_OPTIONS: "--encryption=none"
+   BORG_CREATE_OPTIONS: "-s --progress"
+   BORG_SKIP_VOLUME_SOURCES: "/proc,/sys,/var/run,/var/cache,/var/tmp"
+   BORG_BACKUP_ALL: "True"
+   BORG_BREAK_LOCK: "True"
   volumes:
    - "./backup:/backup"
    - "/var/run/docker.sock:/var/run/docker.sock"
-   - "/srv/docker:/srv/docker:ro"
-   - "/var/lib/docker/:/var/lib/docker:ro"
+   - "/srv/docker:/srv/docker"
+   - "/var/lib/docker/:/var/lib/docker"

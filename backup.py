@@ -6,12 +6,12 @@ import argparse
 from sys import exit
 from os import environ
 
+print("-------- Borg Docker Backup --------")
 parser = argparse.ArgumentParser(description='Awesome Borg-Backup for Docker made simple!')
 #parser.add_argument("action", choices=['backup', 'list'], help="What are we going to do?")
 
 subparsers = parser.add_subparsers(help='Sub-Commands', dest='action')
 restore_parser = subparsers.add_parser('restore', help='Restore Container from Backup')
-restore_parser.add_argument("container", help='Name of the Container to restore')
 restore_parser.add_argument("archive", help='Archive to Restore container from')
 
 list_parser = subparsers.add_parser('list', help='List archives / files in archive')
@@ -56,14 +56,15 @@ try:
 except:
     print("Environment variable BORG_CREATE_OPTIONS unconfigured.")
     print(" --> Borg will create backups with default settings.")
-    borg_create_options = ['--json']
+    borg_create_options = ['--stats']
 
 try:
     if environ["BORG_SKIP_VOLUME_SOURCES"]:
-        global_skip_volumes = environ["BORG_SKIP_VOLUME_SOURCES"].split(' ')
+        global_skip_volumes = environ["BORG_SKIP_VOLUME_SOURCES"].split(',')
         print("Global BORG_SKIP_VOLUME_SOURCES: %s" % environ["BORG_SKIP_VOLUME_SOURCES"])
 except:
-    global_skip_volumes = [ '/proc', '/sys' ]
+    global_skip_volumes = [ '/proc', '/sys', '/var/run', '/var/cache', '/var/tmp' ]
+global_skip_volumes.append('/var/run/docker.sock')
 
 # Will we backup every container? 
 # If "False" only backup containers by Label-Config
@@ -82,7 +83,7 @@ class borg:
 
     @staticmethod
     def create(options, name, volumes):
-        borg.cmd(['create'] + options + ["::" + name + '-{now:%Y-%m-%d}' ] + volumes)
+        borg.cmd(['create'] + options + ["::" + name + '+{now:%Y-%m-%d_%H:%M}' ] + volumes)
 
     @staticmethod
     def init(options):
@@ -122,86 +123,95 @@ def backup(container_name=None):
     borg.init(borg_init_options)
 
     print("Starting backup of container volumes- this could take a while...")
-    for container in client.containers():
-        name = container["Names"][0].replace('/', '')
-
-        if container_name != None and container_name != name:
+    for container in client.containers.list():
+        if container_name != None and container_name != container.name:
             continue
+
+        # Skip containers on unsupported driver
+        # Supported:
+        #  - local
+        try:
+            if not 'local' in container.volume_driver:
+                print("Skipping Container '%s', because of unsupported driver '%s'!" % \
+                    (container_name, container.volume_driver))
+                continue
+        except:
+            pass
 
         # FIXME: Skip myself
         # Will use label ATM
         try:
-            if container["Labels"]["one.gnu.docker.backup"] == "False":
+            if 'False' in container.labels["one.gnu.docker.backup"]:
                 print("Skipping backup of '%s', because of label configuration!" % name)
                 continue
         except:
             pass
 
         print("---------------------------------------")
-        print("Backing up: '%s'..." % name)
+        print("Backing up: '%s'..." % container.name)
         print("Volumes:")
         volumes=[]
-        for volume in container["Mounts"]:
+        for volume_src in container.volumes:
+            volume = container.volumes[volume_src]
+
             # Skip volume by label
             # Syntax: one.gnu.docker.backup.skip: "/mountpoint1, /mountpoint2, ..."
             try:
-                if container["Labels"]["one.gnu.docker.backup.skip"]:
-                    skip = container["Labels"]["one.gnu.docker.backup.skip"].split(",")
+                if container.labels["one.gnu.docker.backup.skip"]:
+                    skip = container.labels["one.gnu.docker.backup.skip"].split(",")
             except:
                 skip = []
 
-            if volume["Destination"] in skip:
-                print("Skipping Volume '%s', because of label configuration!" % volume["Destination"])
+            if volume["bind"] in skip:
+                print(" - '%s' (skipped by label)" % volume["bind"])
                 continue
 
-            # Skip volume on unsupported driver
-            # Supported:
-            #  - local
-            try:
-                if volume["Driver"] != "local":
-                    print("Skipping Volume '%s', because of unsupported driver '%s'!" % \
-                        (volume["Destination"], volume["Driver"]))
-                    continue
-            except:
-                pass
-
-
             # FIXME: Skip volume, if not mounted to this container
-            if not volume["Source"] in global_skip_volumes:
-                volumes.append(volume["Source"])
-                print(" - %s [%s]" % (volume["Destination"], volume["Source"]))
+            if not volume_src in global_skip_volumes:
+                volumes.append(volume_src)
+                print(" - %s [%s]" % (volume["bind"], volume_src))
 
             # Borg-Parameters
             #  - From Environment of this container
             #  - Override by Container-Labels
             try:
-                if container["Labels"]["one.gnu.docker.backup.options"]:
-                    borg_create_options = container["Labels"]["one.gnu.docker.backup.options"]
+                if container.labels["one.gnu.docker.backup.options"]:
+                    borg_create_options = container.labels["one.gnu.docker.backup.options"]
             except:
-                borg_create_options = ['--json']
+                borg_create_options = ['-s', '--progress']
 
             # Let's do it!
-            borg.create(borg_create_options, name, volumes)
+            borg.create(borg_create_options, container.name, volumes)
 
 def list_backups(archive):
     borg.list(archive)
 
-def restore(container, timestamp):
-#    container = client.containers.get(container)
-#    container.pause()
-    borg.restore(container + "-" + timestamp)
-#    container.restart()
+def restore(archive):
+    container_name = archive.split('+')[0]
+
+    print(" ----> Starting Restore Of Containter %s" % container_name)
+    container = client.containers.get(container_name)
+
+    print(" -> Pausing Container...")
+    container.pause()
+    
+    print(" -> Restoring Archive '%s'..." % archive)
+    borg.restore("::" + archive)
+
+    print(" -> Restarting Container...")
+    container.restart()
+
+    print("-> Restore Done!")
 
 def info(archive):
     borg.info(archive)
 
-print("-------- Borg Docker Backup --------")
 if args.action == "backup":
     backup(args.container)
 elif args.action == "list":
     list_backups(args.archive)
 elif args.action == "restore":
-    restore(args.container, args.archive)
+    restore(args.archive)
 elif args.action == "info":
     info(args.archive)
 
