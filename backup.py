@@ -130,8 +130,8 @@ def backup(container_name=None):
         # FIXME: Skip myself
         # Will use label ATM
         try:
-            if 'False' in container.labels["one.gnu.docker.backup"]:
-                print("Skipping backup of '%s', because of label configuration!" % name)
+            if 'False' == container.labels["one.gnu.docker.backup"]:
+                print("Skipping backup of '%s', because of label configuration!" % container.name)
                 continue
         except:
             pass
