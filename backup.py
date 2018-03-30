@@ -82,7 +82,7 @@ class borg:
 
     @staticmethod
     def create(options, name, volumes):
-        borg.cmd(['create'] + options + ["::%s-{now}" %(name)] + volumes)
+        borg.cmd(['create'] + options + ["::" + name + '-{now:%Y-%m-%d}' ] + volumes)
 
     @staticmethod
     def init(options):
