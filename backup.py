@@ -7,7 +7,19 @@ from sys import exit
 from os import environ
 
 parser = argparse.ArgumentParser(description='Awesome Borg-Backup for Docker made simple!')
-parser.add_argument("action", choices=['backup', 'list', 'restore'], help="What are we going to do?")
+#parser.add_argument("action", choices=['backup', 'list'], help="What are we going to do?")
+
+subparsers = parser.add_subparsers(help='Sub-Commands', dest='action')
+restore_parser = subparsers.add_parser('restore', help='Restore Container from Backup')
+restore_parser.add_argument("container", help='Name of the Container to restore')
+restore_parser.add_argument("archive", help='Archive to Restore container from')
+
+list_parser = subparsers.add_parser('list', help='List archives / files in archive')
+list_parser.add_argument("archive", nargs='?', default=None, help='Name of the archive')
+
+backup_parser = subparsers.add_parser('backup', help='Backup all / a single container')
+backup_parser.add_argument("container", nargs='?', default=None, help='Name of the Container to backup (default: all)')
+
 #parser.add_argument("container")
 #parser.add_argument("archive")
 
@@ -21,11 +33,10 @@ client = docker.from_env()
 my_hostname = environ["HOSTNAME"]
 
 try:
-    if environ["BORG_BACKUP_REPOSITORY"]:
-        global borg_repository
-        borg_repository = environ["BORG_BACKUP_REPOSITORY"]
+    if environ["BORG_REPO"]:
+        pass
 except:
-    print("ERROR: Environment Variable BORG_BACKUP_REPOSITORY must be configured!")
+    print("ERROR: Environment Variable BORG_REPO must be configured!")
     exit(1)
 
 # Borg INIT options
@@ -36,9 +47,8 @@ try:
 except:
     print("Environment variable BORG_INIT_OPTIONS unconfigured.")
     print(" --> Borg will create repositories without encryption!")
-    borg_init_options = ['--encryption=none', borg_repository]
+    borg_init_options = ['--encryption=none']
 
-global borg_create_options
 try:
     if environ["BORG_CREATE_OPTIONS"]:
         borg_create_options = environ["BORG_CREATE_OPTIONS"].split(' ')
@@ -48,6 +58,13 @@ except:
     print(" --> Borg will create backups with default settings.")
     borg_create_options = ['--json']
 
+try:
+    if environ["BORG_SKIP_VOLUME_SOURCES"]:
+        global_skip_volumes = environ["BORG_SKIP_VOLUME_SOURCES"].split(' ')
+        print("Global BORG_SKIP_VOLUME_SOURCES: %s" % environ["BORG_SKIP_VOLUME_SOURCES"])
+except:
+    global_skip_volumes = [ '/proc', '/sys' ]
+
 # Will we backup every container? 
 # If "False" only backup containers by Label-Config
 try:
@@ -56,30 +73,44 @@ try:
 except:
     backup_enabled = True
 
-
-
-
 def borg(params):
+    print("DEBUG: ")
+    print(params)
     command = ["borg"] + params
     proc = subprocess.Popen(command,stdout=subprocess.PIPE)
     for line in proc.stdout:
         print("[borg]> %s" % line.rstrip())
 
-def borg_create(options, repository, name, volumes):
-    borg(['create'] + options + ["%s::%s-{now}" %(repository, name)] + volumes)
+def borg_create(options, name, volumes):
+    borg(['create'] + options + ["::%s-{now}" %(name)] + volumes)
 
 def borg_init(options):
     borg(['init'] + options)
 
-def borg_list(repository, options=[]):
-    borg(['list'] + repository) 
+def borg_list(archive=None):
+    options = []
+    if archive != None:
+        options = ["::" + archive]
+    borg(['list'] + options) 
 
 def borg_restore(archive):
-    borg(["extract", borg_repository + "::" + archive]) 
+    borg(["extract", archive]) 
+
+def borg_break_lock():
+    borg(["break-lock"])
+
+# Force Lock-break
+# Warning! Only use if BORG_REPO is exclusvily used by this container!
+try:
+    if not "False" in environ["BORG_BREAK_LOCK"]:
+        borg_break_lock()
+except:
+    borg_break_lock()
+
 
 print("-------- Borg Docker Backup --------")
 
-def backup():
+def backup(container_name=None):
     borg_init(borg_init_options)
 
     print("Starting backup of container volumes- this could take a while...")
@@ -97,12 +128,14 @@ def backup():
                 "Destination": "/var/spool/squid3",
                 "Driver": "local"
              }
-             "labels": {"label1": "value1", "label2": "value2"}
+             "Labels": {"label1": "value1", "label2": "value2"}
         '''
+
+        if container_name != None and container_name != name:
+            continue
 
         # FIXME: Skip myself
         # Will use label ATM
-
         try:
             if container["Labels"]["one.gnu.docker.backup"] == "False":
                 print("Skipping backup of '%s', because of label configuration!" % name)
@@ -110,6 +143,7 @@ def backup():
         except:
             pass
 
+        print("---------------------------------------")
         print("Backing up: '%s'..." % name)
         print("Volumes:")
         volumes=[]
@@ -139,8 +173,9 @@ def backup():
 
 
             # FIXME: Skip volume, if not mounted to this container
-            volumes.append(volume["Source"])
-            print(" - %s [%s]" % (volume["Destination"], volume["Source"]))
+            if not volume["Source"] in global_skip_volumes:
+                volumes.append(volume["Source"])
+                print(" - %s [%s]" % (volume["Destination"], volume["Source"]))
 
             # Borg-Parameters
             #  - From Environment of this container
@@ -149,14 +184,13 @@ def backup():
                 if container["Labels"]["one.gnu.docker.backup.options"]:
                     borg_create_options = container["Labels"]["one.gnu.docker.backup.options"]
             except:
-                pass
+                borg_create_options = ['--json']
 
             # Let's do it!
-            borg_create(borg_create_options, borg_repository, name, volumes)
+            borg_create(borg_create_options, name, volumes)
 
-def list_backups():
-    borg_list([borg_repository])
-
+def list_backups(archive):
+    borg_list(archive)
 
 def restore(container, timestamp):
 #    container = client.containers.get(container)
@@ -165,9 +199,9 @@ def restore(container, timestamp):
 #    container.restart()
 
 if args.action == "backup":
-    backup()
+    backup(args.container)
 elif args.action == "list":
-    list_backups()
+    list_backups(args.archive)
 elif args.action == "restore":
     restore(args.container, args.archive)
 

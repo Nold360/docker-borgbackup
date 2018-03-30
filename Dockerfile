@@ -7,5 +7,9 @@ RUN echo 'deb http://ftp.debian.org/debian/ stretch-backports main' >> /etc/apt/
  		python3-docker && \
 	apt-get clean
 
+ENV BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK yes
+ENV BORG_RELOCATED_REPO_ACCESS_IS_OK yes
+
 COPY ./backup.py /backup.py
-CMD '/usr/bin/python3' '/backup.py' 'backup'
+CMD [ "backup" ]
+ENTRYPOINT [ "/backup.py" ]

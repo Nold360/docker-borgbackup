@@ -2,8 +2,12 @@ version: "2"
 services:
  backup:
   build: .
+  labels:
+   one.gnu.docker.backup: "False"
   environment:
-   BORG_BACKUP_REPOSITORY: "/backup"
+   BORG_REPO: "/backup"
   volumes:
    - "./backup:/backup"
    - "/var/run/docker.sock:/var/run/docker.sock"
+   - "/srv/docker:/srv/docker:ro"
+   - "/var/lib/docker/:/var/lib/docker:ro"
