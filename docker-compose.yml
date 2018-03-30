@@ -1,0 +1,9 @@
+version: "2"
+services:
+ backup:
+  build: .
+  environment:
+   BORG_BACKUP_REPOSITORY: "/backup"
+  volumes:
+   - "./backup:/backup"
+   - "/var/run/docker.sock:/var/run/docker.sock"

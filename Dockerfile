@@ -7,4 +7,5 @@ RUN echo 'deb http://ftp.debian.org/debian/ stretch-backports main' >> /etc/apt/
  		python3-docker && \
 	apt-get clean
 
-VOLUME /backup
+COPY ./backup.py /backup.py
+CMD '/usr/bin/python3' '/backup.py' 'backup'

@@ -8,8 +8,8 @@ from os import environ
 
 parser = argparse.ArgumentParser(description='Awesome Borg-Backup for Docker made simple!')
 parser.add_argument("action", choices=['backup', 'list', 'restore'], help="What are we going to do?")
-parser.add_argument("container")
-parser.add_argument("archive")
+#parser.add_argument("container")
+#parser.add_argument("archive")
 
 args = parser.parse_args()
 
@@ -22,12 +22,14 @@ my_hostname = environ["HOSTNAME"]
 
 try:
     if environ["BORG_BACKUP_REPOSITORY"]:
+        global borg_repository
         borg_repository = environ["BORG_BACKUP_REPOSITORY"]
 except:
     print("ERROR: Environment Variable BORG_BACKUP_REPOSITORY must be configured!")
     exit(1)
 
 # Borg INIT options
+global borg_init_options
 try:
     if environ["BORG_INIT_OPTIONS"]:
         borg_init_options = environ["BORG_INIT_OPTIONS"].split(' ')
@@ -36,6 +38,7 @@ except:
     print(" --> Borg will create repositories without encryption!")
     borg_init_options = ['--encryption=none', borg_repository]
 
+global borg_create_options
 try:
     if environ["BORG_CREATE_OPTIONS"]:
         borg_create_options = environ["BORG_CREATE_OPTIONS"].split(' ')
