@@ -122,21 +122,10 @@ except:
 def backup(container_name=None):
     borg.init(borg_init_options)
 
-    print("Starting backup of container volumes- this could take a while...")
+    print("Starting backup of container volumes - this could take a while...")
     for container in client.containers.list():
         if container_name != None and container_name != container.name:
             continue
-
-        # Skip containers on unsupported driver
-        # Supported:
-        #  - local
-        try:
-            if not 'local' in container.volume_driver:
-                print("Skipping Container '%s', because of unsupported driver '%s'!" % \
-                    (container_name, container.volume_driver))
-                continue
-        except:
-            pass
 
         # FIXME: Skip myself
         # Will use label ATM
@@ -151,8 +140,22 @@ def backup(container_name=None):
         print("Backing up: '%s'..." % container.name)
         print("Volumes:")
         volumes=[]
-        for volume_src in container.volumes:
-            volume = container.volumes[volume_src]
+        for volume in container.attrs["Mounts"]:
+            volume_src = volume["Source"]
+            volume_dest = volume["Destination"]
+            volume_type = volume["Type"]
+
+            # Skip containers on unsupported driver
+            # Supported:
+            #  - local
+            try:
+                volume_driver = volume["Driver"]
+                if not 'local' in volume_driver:
+                    print(" - '%s' [%s] (Skipped - Unsupported driver '%s')" % \
+                        (volume_dest, volume_src, volume_driver))
+                    continue
+            except:
+                pass
 
             # Skip volume by label
             # Syntax: one.gnu.docker.backup.skip: "/mountpoint1, /mountpoint2, ..."
@@ -162,14 +165,14 @@ def backup(container_name=None):
             except:
                 skip = []
 
-            if volume["bind"] in skip:
-                print(" - '%s' (skipped by label)" % volume["bind"])
+            if volume_src in skip:
+                print(" - %s [%s] (skipped by label)" % (volume_dest, volume_src))
                 continue
 
             # FIXME: Skip volume, if not mounted to this container
             if not volume_src in global_skip_volumes:
                 volumes.append(volume_src)
-                print(" - %s [%s]" % (volume["bind"], volume_src))
+                print(" - %s [%s]" % (volume_dest, volume_src))
 
             # Borg-Parameters
             #  - From Environment of this container
@@ -193,7 +196,8 @@ def restore(archive):
     container = client.containers.get(container_name)
 
     print(" -> Pausing Container...")
-    container.pause()
+    if "running" in container.status: 
+        container.pause()
     
     print(" -> Restoring Archive '%s'..." % archive)
     borg.restore("::" + archive)
