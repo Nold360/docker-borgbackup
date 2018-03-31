@@ -69,14 +69,14 @@ class Config:
             print(" --> Borg will create backups with default settings.")
 
         try:
-            if environ["BORG_SKIP_VOLUME_SOURCES"]:
-                self.excludes = environ["BORG_SKIP_VOLUME_SOURCES"].split(',')
-                print("Global BORG_SKIP_VOLUME_SOURCES: %s" % environ["BORG_SKIP_VOLUME_SOURCES"])
+            if environ["BORG_EXCLUDE_SOURCE"]:
+                self.excludes = environ["BORG_EXCLUDE_SOURCE"].split(',')
+                print("Global BORG_EXCLUDE_SOURCE: %s" % environ["BORG_EXCLUDE_SOURCE"])
         except:
             pass
 
         # Always exclude those
-        self.excludes.append([ '/proc', '/sys', '/var/run', '/var/cache', '/var/tmp' ])
+        self.excludes += [ '/proc', '/sys', '/var/run', '/var/cache', '/var/tmp' ]
         self.excludes.append('/var/run/docker.sock')
 
         # Will we backup every container? 
@@ -97,6 +97,7 @@ class Config:
 
 class borg:
     def cmd(params):
+        print(params)
         command = ["borg"] + params
         proc = subprocess.Popen(command,stdout=subprocess.PIPE)
         for line in proc.stdout:
@@ -135,13 +136,13 @@ class borg:
 class Action:
     @staticmethod
     def backup(config, container_name=None):
-        if config.breal_lock:
+        if config.break_lock:
             borg.break_lock()
 
         borg.init(config.init_options)
 
         print("Starting backup of container volumes - this could take a while...")
-        for container in client.containers.list():
+        for container in config.client.containers.list():
             if container_name != None and container_name != container.name:
                 continue
 
@@ -195,10 +196,8 @@ class Action:
                     print(" - %s [%s] (skipped by label)" % (volume_dest, volume_src))
                     continue
 
-                # FIXME: Skip volume, if not mounted to this container
-                if not volume_src in global_skip_volumes:
-                    volumes.append(volume_src)
-                    print(" - %s [%s]" % (volume_dest, volume_src))
+                volumes.append(volume_src)
+                print(" - %s [%s]" % (volume_dest, volume_src))
 
                 # Borg-Parameters
                 #  - From Environment of this container
@@ -209,6 +208,11 @@ class Action:
                 except:
                     config.create_options = ['-s', '--progress']
 
+                # FIXME: Skip volume, if not mounted to this container
+                # FIXME: Exclude Source & Destinations
+                for exclude in config.excludes:
+                    config.create_options += ['--exclude', exclude]
+
                 # Let's do it!
                 borg.create(config.create_options, container.name, volumes)
 
@@ -217,11 +221,11 @@ class Action:
         borg.list(archive)
 
     @staticmethod
-    def restore(archive):
+    def restore(config,archive):
         container_name = archive.split('+')[0]
 
         print(" ----> Starting Restore Of Containter %s" % container_name)
-        container = client.containers.get(container_name)
+        container = config.client.containers.get(container_name)
 
         print(" -> Pausing Container...")
         if "running" in container.status: 
@@ -242,11 +246,11 @@ class Action:
 config = Config()
 
 if args.action == "backup":
-    Action.backup(args.container)
+    Action.backup(config, args.container)
 elif args.action == "list":
     Action.list_backups(args.archive)
 elif args.action == "restore":
-    Action.restore(args.archive)
+    Action.restore(config, args.archive)
 elif args.action == "info":
     Action.info(args.archive)
 elif args.action == "borg":
