@@ -20,7 +20,7 @@ Full Automated Container-Backup - Docker Style!
 ## Building / Installation
 ### Using Docker-Hub Image
 ```
-docker run -ti --rm -v $(pwd)/backup:/backup -e BORG_REPO=/backup nold360/docker-backup
+docker run -ti --rm -v $(pwd)/backup:/backup -e BORG_REPO=/backup nold360/docker-borgbackup
 ```
 
 ### Self-Building
@@ -37,12 +37,16 @@ Example:
 version: "3"
 services:
  backup:
-  image: nold360/docker-backup
+  #build: .
+  image: nold360/docker-borgbackup
   labels:
    # Don't backup your backup...
    one.gnu.docker.backup: "False"
   environment:
+   #BORG_REPO MUST be set
    BORG_REPO: "/backup"
+   
+   # Those are default-values:
    BORG_INIT_OPTIONS: "--encryption=none"
    BORG_CREATE_OPTIONS: "-s --progress"
    BORG_SKIP_VOLUME_SOURCES: "/proc,/sys,/var/run,/var/cache,/var/tmp"
@@ -50,7 +54,7 @@ services:
    BORG_BREAK_LOCK: "True"
   volumes:
    # needed for SSH-BORG_REPO:
-   - "./ssh:/root/.ssh:ro"
+   - "./ssh:/ssh:ro"
 
    # needed for local BORG_REPO:
    - "./backup:/backup"
