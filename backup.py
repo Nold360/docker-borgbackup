@@ -8,7 +8,6 @@ from os import environ
 
 print("-------- Borg Docker Backup --------")
 parser = argparse.ArgumentParser(description='Awesome Borg-Backup for Docker made simple!')
-#parser.add_argument("action", choices=['backup', 'list'], help="What are we going to do?")
 
 subparsers = parser.add_subparsers(help='Sub-Commands', dest='action')
 restore_parser = subparsers.add_parser('restore', help='Restore Container from Backup')
@@ -204,12 +203,12 @@ class Action:
                         skip = container.labels["one.gnu.docker.backup.skip"].split(",")
                 except:
                     skip = []
-
-                if volume_src in skip:
+                
+                if volume_dest in skip:
                     print(" - %s [%s] (skipped by label)" % (volume_dest, volume_src))
                     continue
 
-                # Skit volume if label configuration tells us to only backup
+                # Skip volume if label configuration tells us to only backup
                 # specified volume destinations
                 if volumes_only:
                     if volume_dest not in volumes_only:
@@ -234,7 +233,10 @@ class Action:
 
 
         # Let's do it!
-            borg.create(config.create_options, container.name, volumes)
+            if len(volumes) > 0:
+                borg.create(config.create_options, container.name, volumes)
+            else: 
+                print("Skipping Container - Nothing to do...")
 
     @staticmethod
     def list_backups(archive):
