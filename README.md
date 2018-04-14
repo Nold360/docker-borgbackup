@@ -19,13 +19,12 @@ Full Automated Container-Backup - Docker Style!
 
 ## Building / Installation
 ### Using Docker-Hub Image
-```
-docker run -ti --rm \
-	-v $(pwd)/backup:/backup \
-	-v /var/run/docker.sock:/var/run/docker.sock \
-	-e BORG_REPO=/backup \
-	nold360/docker-borgbackup
-```
+There are three requirements to run this container:
+ - Environemnt-Variable BORG_REPO must be configured
+ - All pathes to volumes, MUST be mounted to this container (f.e. /var/lib/docker/volumes/)
+ - The Docker-Socket must be mounted to the container
+
+Since it's a lot to include in a single command, I will only show how to use this container in combination with docker-compose.
 
 ### Self-Building
 Clone git & build using docker/-compose:
@@ -70,6 +69,12 @@ services:
    - "/srv/:/srv/:ro"
    - "/var/lib/docker/:/var/lib/docker:ro"
 
+```
+
+### Running the Container
+After setting up docker-compose.yml we can run our backup:
+```
+docker-compose run --rm backup
 ```
 
 ## Global-/ Borg-Configuration (using Environment)
