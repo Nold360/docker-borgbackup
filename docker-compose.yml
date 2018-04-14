@@ -1,9 +1,12 @@
-version: "2"
+version: "3"
 services:
  backup:
   build: .
   labels:
    one.gnu.docker.backup: "False"
+   one.gnu.docker.backup.only: "/data,/more/data"
+   one.gnu.docker.backup.skip: "/more/tmp"
+   one.gnu.docker.backup.options: "-v --stats"
   environment:
    BORG_REPO: "/backup"
    BORG_INIT_OPTIONS: "--encryption=none"
@@ -12,7 +15,8 @@ services:
    BORG_BACKUP_ALL: "True"
    BORG_BREAK_LOCK: "True"
   volumes:
+   - "./ssh:/ssh:ro"
    - "./backup:/backup"
    - "/var/run/docker.sock:/var/run/docker.sock"
-   - "/srv/docker:/srv/docker"
-   - "/var/lib/docker/:/var/lib/docker"
+   - "/srv/:/srv/:ro"
+   - "/var/lib/docker/:/var/lib/docker:ro"

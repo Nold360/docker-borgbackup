@@ -28,6 +28,7 @@ borg_parser.add_argument("borg", nargs='+', default=None, help='Borg Parameters'
 
 args = parser.parse_args()
 
+###
 # Global configuration class
 class Config:
     # Default values
@@ -41,11 +42,12 @@ class Config:
     # Connect to Docker Socket
     client = docker.from_env()
 
+    # Read Environment Configuration
     def __init__(self):
-        # Read Environemtn Configuration
         # This should never fail anyways...
         self.hostname = environ["HOSTNAME"]
         try:
+            # $BORG_REPO will be parsed by borg directly
             if environ["BORG_REPO"]:
                 pass
         except:
@@ -95,9 +97,10 @@ class Config:
         except:
             pass
 
+###
+# Borg Command Class
 class borg:
     def cmd(params):
-        print(params)
         command = ["borg"] + params
         proc = subprocess.Popen(command,stdout=subprocess.PIPE)
         for line in proc.stdout:
@@ -133,6 +136,8 @@ class borg:
             options = ["::" + archive]
         borg.cmd(['info'] + options) 
 
+###
+# This class implements all the important stuff
 class Action:
     @staticmethod
     def backup(config, container_name=None):
@@ -166,6 +171,14 @@ class Action:
             print("---------------------------------------")
             print("Backing up: '%s'..." % container.name)
             print("Volumes:")
+
+            # Only backup specified volumes/files/...?
+            try:
+                if container.labels["one.gnu.docker.backup.only"]:
+                    volumes_only = container.labels["one.gnu.docker.backup.only"].split(',')
+            except:
+                volumes_only = False
+
             volumes=[]
             for volume in container.attrs["Mounts"]:
                 volume_src = volume["Source"]
@@ -185,7 +198,7 @@ class Action:
                     pass
 
                 # Skip volume by label
-                # Syntax: one.gnu.docker.backup.skip: "/mountpoint1, /mountpoint2, ..."
+                # Syntax: one.gnu.docker.backup.skip: "/mountpoint1,/mountpoint2, ..."
                 try:
                     if container.labels["one.gnu.docker.backup.skip"]:
                         skip = container.labels["one.gnu.docker.backup.skip"].split(",")
@@ -195,6 +208,12 @@ class Action:
                 if volume_src in skip:
                     print(" - %s [%s] (skipped by label)" % (volume_dest, volume_src))
                     continue
+
+                # Skit volume if label configuration tells us to only backup
+                # specified volume destinations
+                if volumes_only:
+                    if volume_dest not in volumes_only:
+                        continue
 
                 volumes.append(volume_src)
                 print(" - %s [%s]" % (volume_dest, volume_src))
@@ -208,13 +227,14 @@ class Action:
                 except:
                     config.create_options = ['-s', '--progress']
 
-                # FIXME: Skip volume, if not mounted to this container
+                # FIXME: Skip volume, if source is not mounted to this container
                 # FIXME: Exclude Source & Destinations
                 for exclude in config.excludes:
                     config.create_options += ['--exclude', exclude]
 
-                # Let's do it!
-                borg.create(config.create_options, container.name, volumes)
+
+        # Let's do it!
+            borg.create(config.create_options, container.name, volumes)
 
     @staticmethod
     def list_backups(archive):
@@ -224,7 +244,7 @@ class Action:
     def restore(config,archive):
         container_name = archive.split('+')[0]
 
-        print(" ----> Starting Restore Of Containter %s" % container_name)
+        print(" ----> Starting Restore of Containter %s" % container_name)
         container = config.client.containers.get(container_name)
 
         print(" -> Pausing Container...")
