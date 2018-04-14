@@ -20,7 +20,11 @@ Full Automated Container-Backup - Docker Style!
 ## Building / Installation
 ### Using Docker-Hub Image
 ```
-docker run -ti --rm -v $(pwd)/backup:/backup -e BORG_REPO=/backup nold360/docker-borgbackup
+docker run -ti --rm \
+	-v $(pwd)/backup:/backup \
+	-v /var/run/docker.sock:/var/run/docker.sock \
+	-e BORG_REPO=/backup \
+	nold360/docker-borgbackup
 ```
 
 ### Self-Building
