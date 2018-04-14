@@ -26,7 +26,7 @@ docker run -ti --rm -v $(pwd)/backup:/backup -e BORG_REPO=/backup nold360/docker
 ### Self-Building
 Clone git & build using docker/-compose:
 ```
-git clone https://git.nold.in/nold/docker-borgbackup
+git clone https://github.com/nold360/docker-borgbackup
 cd docker-borgbackup
 docker build .
 ```
