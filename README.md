@@ -1,8 +1,8 @@
 # Docker-BorgBackup
 Full Automated Container-Backup - Docker Style!
 
-**Important: This image is in ALPHA/POC-State! Don't rely your production backup on it!**
-**Important: Since this Container could be EXTREMLY destructive, don't keep it running!**
+**WARNING: This image is in ALPHA/POC-State! Don't rely your production backup on it!**
+**Also, since this Container could be EXTREMLY destructive, don't keep it running in background!**
 
 ## ToDo's/Limitations/...: 
  - Implement Pruning / Repo Cleanup methods
@@ -20,7 +20,7 @@ Full Automated Container-Backup - Docker Style!
 ## Building / Installation
 ### Using Docker-Hub Image
 ```
-docker run -v $(pwd)/backup:/backup nold360/docker-backup
+docker run -ti --rm -v $(pwd)/backup:/backup -e BORG_REPO=/backup nold360/docker-backup
 ```
 
 ### Self-Building
