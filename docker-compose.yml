@@ -19,5 +19,5 @@ services:
    - "./borg:/borg"
    - "./backup:/backup"
    - "/var/run/docker.sock:/var/run/docker.sock"
-  # - "/srv/:/srv/:ro"
-  # - "/var/lib/docker/:/var/lib/docker:ro"
+  # - "/srv/:/srv/"
+  # - "/var/lib/docker/:/var/lib/docker"
