@@ -66,8 +66,8 @@ services:
    - "/var/run/docker.sock:/var/run/docker.sock"
 
    # Include every volume-Path you might want to backup!
-   - "/srv/:/srv/:ro"
-   - "/var/lib/docker/:/var/lib/docker:ro"
+   - "/srv:/srv"
+   - "/var/lib/docker:/var/lib/docker"
 
 ```
 
